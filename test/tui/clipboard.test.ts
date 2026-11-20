@@ -15,6 +15,7 @@ test("TUI clipboard uses terminal OSC52 support when available", async () => {
         },
     }, {
         platform: "linux",
+        wsl: false,
     });
 
     expect(copied).toEqual(["selected text"]);
@@ -64,4 +65,48 @@ test("TUI clipboard falls back to OSC52 when native copy fails", async () => {
 
 test("TUI character count treats a Unicode code point as one character", () => {
     expect(countTuiCharacters("Vera ✨")).toBe(6);
+});
+
+test("TUI clipboard copies through the Windows clipboard on WSL", async () => {
+    const nativeCopies: string[] = [];
+    const osc52Copies: string[] = [];
+
+    await copyTuiText("selected text", {
+        copyToClipboardOSC52(text): boolean {
+            osc52Copies.push(text);
+            return true;
+        },
+    }, {
+        platform: "linux",
+        wsl: true,
+        nativeClipboard: {
+            async copy(text): Promise<void> {
+                nativeCopies.push(text);
+            },
+        },
+    });
+
+    expect(nativeCopies).toEqual(["selected text"]);
+    expect(osc52Copies).toEqual([]);
+});
+
+test("TUI clipboard falls back to OSC52 when the WSL clipboard fails", async () => {
+    const osc52Copies: string[] = [];
+
+    await copyTuiText("selected text", {
+        copyToClipboardOSC52(text): boolean {
+            osc52Copies.push(text);
+            return true;
+        },
+    }, {
+        platform: "linux",
+        wsl: true,
+        nativeClipboard: {
+            async copy(): Promise<void> {
+                throw new Error("clip.exe unavailable");
+            },
+        },
+    });
+
+    expect(osc52Copies).toEqual(["selected text"]);
 });
